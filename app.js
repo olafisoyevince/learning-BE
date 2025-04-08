@@ -1,8 +1,7 @@
 import { connectDB } from "./config/db.js";
 import dotenv from "dotenv";
 import express from "express";
-import feedRoutes from "./routes/feed.js";
-import productRoutes from "./routes/product.js";
+import productRoutes from "./routes/product.route.js";
 
 dotenv.config();
 
@@ -23,9 +22,8 @@ app.use((req, res, next) => {
 });
 
 // ORHER MIDDLEWARES
-app.use("/feed", feedRoutes);
 
-app.use("/products", productRoutes);
+app.use("/api/products", productRoutes);
 
 app.listen(8080, () => {
   connectDB();
