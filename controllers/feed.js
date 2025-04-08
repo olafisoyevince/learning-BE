@@ -1,5 +1,4 @@
 import Post from "../models/post.js";
-// import { validationResult } from "express-validator/check";
 
 export const getPosts = (req, res, next) => {
   const posts = [
@@ -19,15 +18,6 @@ export const getPosts = (req, res, next) => {
 };
 
 export const createPost = (req, res, next) => {
-  //   const errors = validationResult(req);
-
-  //   if (!errors.isEmpty()) {
-  //     return res.status(422).json({
-  //       message: "Validation failed miserably!",
-  //       errors: errors.array(),
-  //     });
-  //   }
-
   const title = req.body.title;
   const content = req.body.content;
   const imageUrl = req.body.imageUrl;
