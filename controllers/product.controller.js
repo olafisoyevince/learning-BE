@@ -1,115 +1,204 @@
 import mongoose from "mongoose";
 import Product from "../models/product.model.js";
+import User from "../models/user.model.js";
+import { successResponse } from "../lib/utils.js";
+import { ApiError } from "../lib/ApiError.js";
 
 export const createProduct = async (req, res, next) => {
   const product = req.body;
 
   if (!product?.name || !product?.price || !product?.image) {
-    return res.status(422).json({
+    throw new ApiError({
       message: "Please provide all fields",
       statusCode: 422,
-      success: false,
     });
   }
 
-  const newProduct = new Product(product);
+  const post = { ...product, creator: req.userId };
 
-  await newProduct
-    .save()
-    .then((data) => {
-      console.log(data);
-      res.status(201).json({
-        message: "Product created successfully!",
-        product: data,
+  try {
+    const newProduct = new Product(post);
+
+    console.log(newProduct, "newProduct");
+
+    await newProduct.save();
+
+    const user = await User.findById(req.userId);
+    user.posts.push(newProduct._id);
+    await user.save();
+
+    successResponse({
+      res,
+      message: "Product created successfully!",
+      data: {
+        post: newProduct,
+        creator: { _id: user._id, name: user.name },
+      },
+      statusCode: 201,
+    });
+  } catch (error) {
+    if (!(error instanceof ApiError)) {
+      error = new ApiError({
+        message: "Server error",
+        statusCode: 500,
+        error,
       });
-    })
-    .catch((error) => console.log(`Error in create product`, error));
+    }
+    next(error);
+  }
 };
 
 export const deleteProduct = async (req, res, next) => {
   const productId = req.params.id;
+  const userId = req.userId;
 
-  if (!productId) {
-    return res.status(422).json({
-      message: "Please provide product id",
-      statusCode: 422,
-      success: false,
+  if (!mongoose.Types.ObjectId.isValid(productId)) {
+    throw new ApiError({
+      message: "Please provide valid product id",
+      statuscode: 422,
     });
   }
 
-  Product.findByIdAndDelete(productId)
-    .then((data) => {
-      res.status(201).json({
-        message: "Post deleted successfully!",
-        statusCode: 200,
-        success: true,
-      });
-    })
-    .catch((error) => {
-      console.log(`Error in delete product`, error);
-      res.status(404).json({
+  try {
+    const productFromDb = await Product.findById(productId);
+
+    if (!productFromDb) {
+      throw new ApiError({
         message: "Product not found!",
         statusCode: 404,
-        success: false,
       });
+    }
+
+    const isUser = productFromDb.creator.toString() === userId.toString();
+
+    if (!isUser) {
+      throw new ApiError({
+        message: "You are not authorized to delete this product!",
+        statusCode: 401,
+      });
+    }
+
+    await Product.findByIdAndDelete(productId);
+
+    const user = await User.findById(userId);
+
+    user.posts.pull(productId);
+    await user.save();
+
+    successResponse({
+      res,
+      message: "Product deleted successfully!",
+      statusCode: 200,
     });
+  } catch (error) {
+    console.log(`Error in delete product`, error);
+    if (!(error instanceof ApiError)) {
+      error = new ApiError({
+        message: "Server error",
+        statusCode: 500,
+        error,
+      });
+    }
+
+    next(error);
+  }
 };
 
 export const getProducts = async (req, res, next) => {
-  Product.find()
-    .then((data) => {
-      res.status(200).json({
-        message: "Products fetched successfully!",
-        products: data,
-        statusCode: 200,
-        success: true,
-      });
-    })
-    .catch((error) => {
-      console.log(`Error in get products`, error);
-      res.status(404).json({
-        message: "Products not found!",
+  const userId = req.userId;
+
+  try {
+    const user = await User.findById(userId);
+
+    if (!user) {
+      throw new ApiError({
+        message: "User not found!",
         statusCode: 404,
-        success: false,
       });
+    }
+
+    const products = await Product.find();
+
+    successResponse({
+      res,
+      message: "Products fetched successfully!",
+      data: products,
+      statusCode: 200,
     });
+  } catch (error) {
+    if (!(error instanceof ApiError)) {
+      error = new ApiError({
+        message: "Server error",
+        statusCode: 500,
+        error,
+      });
+    }
+
+    next(error);
+  }
 };
 
 export const updateProduct = async (req, res, next) => {
   const productId = req.params.id;
-  const product = req.body;
+  const updatedData = req.body;
+  const userId = req.userId;
 
   if (!mongoose.Types.ObjectId.isValid(productId)) {
-    return res.status(404).json({
+    throw new ApiError({
       message: "Invalid product Id",
       statuscode: 404,
-      success: false,
     });
   }
 
-  if (!product?.name || !product?.price || !product.image) {
-    return res.status(422).json({
+  if (!updatedData?.name || !updatedData?.price || !updatedData.image) {
+    throw new ApiError({
       message: "Please provide all fields",
       statuscode: 422,
-      success: false,
     });
   }
 
-  Product.findByIdAndUpdate(productId, product, { new: true })
-    .then((data) => {
-      return res.status(200).json({
-        message: "Product updated successfully!",
-        product: data,
-        statusCode: 200,
-        success: true,
-      });
-    })
-    .catch((error) => {
-      console.log(`Error in update product`, error);
-      return res.status(404).json({
+  try {
+    const productFromDb = await Product.findById(productId);
+
+    if (!productFromDb) {
+      throw new ApiError({
         message: "Product not found!",
         statusCode: 404,
-        success: false,
       });
-    });
+    }
+
+    const isUser = productFromDb.creator.toString() === userId.toString();
+
+    if (!isUser) {
+      throw new ApiError({
+        message: "You are not authorized to update this product!",
+        statusCode: 401,
+      });
+    }
+
+    if (isUser) {
+      const updatedProduct = await Product.findByIdAndUpdate(
+        productId,
+        updatedData,
+        { new: true }
+      );
+
+      successResponse({
+        res,
+        message: "Product updated successfully!",
+        product: updatedProduct,
+        statusCode: 200,
+      });
+    }
+  } catch (error) {
+    if (!(error instanceof ApiError)) {
+      error = new ApiError({
+        message: "Server error",
+        statusCode: 500,
+        error,
+      });
+    }
+
+    next(error);
+  }
 };

@@ -2,8 +2,13 @@ import { connectDB } from "./config/db.js";
 import dotenv from "dotenv";
 import express from "express";
 import productRoutes from "./routes/product.route.js";
+import authRoutes from "./routes/auth.route.js";
+import { authMiddleware } from "./middleware/auth.middleware.js";
+import { errorHandler } from "./lib/errorHandler.js";
 
 dotenv.config();
+
+const PORT = process.env.PORT || 8080;
 
 const app = express();
 
@@ -23,9 +28,13 @@ app.use((req, res, next) => {
 
 // ORHER MIDDLEWARES
 
-app.use("/api/products", productRoutes);
+app.use("/api/products", authMiddleware, productRoutes);
 
-app.listen(8080, () => {
+app.use("/api/auth", authRoutes);
+
+app.use(errorHandler);
+
+app.listen(PORT, () => {
   connectDB();
   console.log("server started on PORT 8080");
 });

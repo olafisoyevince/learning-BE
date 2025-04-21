@@ -16,6 +16,11 @@ const productSchema = new Schema(
       type: String,
       required: true,
     },
+    creator: {
+      type: Schema.Types.ObjectId,
+      ref: "User",
+      required: true,
+    },
   },
   {
     timestamps: true, // createdAt and updatedAt
